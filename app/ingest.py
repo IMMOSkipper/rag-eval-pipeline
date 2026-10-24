@@ -1,10 +1,11 @@
 import os
-# 修改：把 UnstructuredMarkdownLoader 替换成 TextLoader 
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
 
-# 指定文档路径（相对项目根目录）
 DOC_PATH = "data/docs/langchain_overview.md"
+DB_DIR = "chroma_db" # 向量库保存的本地目录
 
 def load_and_chunk():
     if not os.path.exists(DOC_PATH):
@@ -12,8 +13,6 @@ def load_and_chunk():
         return
 
     print(f"📄 正在加载文档：{DOC_PATH} ...")
-    # 加载 Markdown 文档 
-    # 修改：使用 TextLoader，并指定编码为 utf-8
     loader = TextLoader(DOC_PATH, encoding="utf-8")
     documents = loader.load()
 
@@ -28,15 +27,27 @@ def load_and_chunk():
         separators=["\n\n", "\n", "。", "！", "？", " ", ""] # 尽量按语义边界切
     )
 
-    chunks = text_splitter.split_documents(documents)
+    return text_splitter.split_documents(documents)
+
+def main():
+    print("🚀 开始加载文档并切块...")
+    chunks = load_and_chunk()
     print(f"✂️ 切块完成，共切出 {len(chunks)} 个块。\n")
 
-    # 打印前3个块看看长什么样
-    print("-" * 40)
-    for i, chunk in enumerate(chunks[:3]):
-        print(f"【块 {i+1}】长度：{len(chunk.page_content)} 字符")
-        print(chunk.page_content)
-        print("-" * 40)
+    print("🧠 正在加载 Embedding 模型（beg-small-zh-v1.5）...")
+    embeddings = HuggingFaceEmbeddings(
+        model_name="BAAI/bge-small-zh-v1.5",
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True}
+    )
+
+    print("🗄 正在将向量写入 Chroma 数据库...")
+    vectorstore = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        persist_directory=DB_DIR
+    )
+    print(f"🎉 入库完成！数据库保存在：{DB_DIR}")
 
 if __name__ == "__main__":
-    load_and_chunk()
+    main()
