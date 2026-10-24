@@ -22,12 +22,17 @@ def search(query: str, top_k: int = 2):
     # 注意：在 Chroma 中，返回的 score 是“距离”（越小越相似）
     docs_with_score = vectorstore.similarity_search_with_score(query, k=top_k)
 
+    THRESHOLD = 0.8
+
     print("-" * 40)
     for i, (doc, score) in enumerate(docs_with_score):
-        print(f"【匹配结果 {i+1}】距离分数：{score:.4f}")
-        # 截取前 150 个字符打印，方便看结果
-        content_preview = doc.page_content.replace("\n", " ")[:150]
-        print(f"内容预览：{content_preview}...\n")
+        if score > THRESHOLD:
+            print(f"⚠️ 匹配结果 {i+1}：距离分数 {score:.4f} 超过阈值 {THRESHOLD}，判定为不相关，拒绝使用该块。")
+        else:
+            print(f"【匹配结果 {i+1}】距离分数：{score:.4f}")
+            # 截取前 150 个字符打印，方便看结果
+            content_preview = doc.page_content.replace("\n", " ")[:150]
+            print(f"内容预览：{content_preview}...\n")
     print("-" * 40 + "\n")
 
 if __name__ == "__main__":

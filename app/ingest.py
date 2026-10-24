@@ -22,13 +22,26 @@ def load_and_chunk():
     # 设置分块策略（这是 RAG 的第一个坑，我们先采用固定长度+重叠窗口）
     # chunk_size：每块的字符数，chunk_overlap：相邻块之间的重叠字符数
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500, # 先设 500 字符，对中文来说大概是 250-300 个字
-        chunk_overlap=50, # 50 个字符的重叠，防止语义在边界被切断
+        chunk_size=800, # 调大，让一段代码尽量在一整块里
+        chunk_overlap=100, # 调大重叠，防止切断上下文
         length_function=len,
         separators=["\n\n", "\n", "。", "！", "？", " ", ""] # 尽量按语义边界切
     )
 
-    return text_splitter.split_documents(documents)
+    chunks = text_splitter.split_documents(documents)
+
+    # 【新增过滤逻辑】
+    # 修改：放宽长度限制，并去掉写死的词
+    clean_chunks = []
+    for chunk in chunks:
+        # 长度大于 30，并且不是纯靠符号堆砌的块
+        text = chunk.page_content.strip()
+        if len(text) > 30:
+            clean_chunks.append(chunk)
+
+    print(f"🧹 清洗后，剩余 {len(clean_chunks)} 个有效块。")
+    return clean_chunks
+
 
 def main():
     print("🚀 开始加载文档并切块...")
