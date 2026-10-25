@@ -1,0 +1,6 @@
+{"query": "LangChain 里的智能体（Agent）是什么？", "excepted_behavior": "answer"}
+{"query": "怎么自定义工具给 Agent 使用？", "excepted_behavior": "answer"}
+{"query": "LangChain 的运行框架包含哪些组件？", "excepted_behavior": "answer"}
+{"query": "红烧肉怎么做好吃？", "excepted_behavior": "refuse"}
+{"query": "今天北京天气怎么样？", "excepted_behavior": "refuse"}
+{"query": "如何用 Python 爬取淘宝数据？", "excepted_behavior": "refuse"}

@@ -1,17 +1,3 @@
-LangChain 中文教程V1PythonLangchainLangChain 概览
-LangChain 概览
-此页内容
-
-文档语言
-Python
-TypeScript
-深入探索
-LangChain 中文教程
-LangChain 快速入门
-LangChain 概览
-智能代理
-多智能体系统
-探索开发工具
 体验AI智能工具
 学习编程课程
 智能体 = 模型 + 运行框架。 LangChain 提供 create_agent：一个简洁且高度可配置的运行框架。运行框架是围绕模型循环的一切组件，包括 Prompt、工具以及任何用于塑造行为的中间件。你可以从这些基础单元开始，精确组合用例所需的能力。支持 OpenAI、Anthropic、Google 等提供商。 智能代理

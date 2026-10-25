@@ -48,6 +48,7 @@ idna==3.20
 importlib_resources==7.1.0
 installer==0.7.0
 Jinja2==3.1.6
+jiter==0.18.0
 joblib==1.6.0
 jsonpatch==1.36
 jsonpointer==3.4
@@ -101,6 +102,7 @@ nvidia-nvtx==13.0.85
 oauthlib==4.0.0
 olefile==0.47
 onnxruntime==1.31.0
+openai==3.37.0
 opentelemetry-api==1.45.1
 opentelemetry-exporter-otlp-common==0.66b1
 opentelemetry-exporter-otlp-proto-common==1.45.1
