@@ -36,7 +36,7 @@ def ask_rag(query: str, model_name: str = DEFAULT_MODEL) -> str:
     """
 
     # 调用大模型
-    print(f"🤖模型 {model_name} 正在生成回答...")
+    print(f"🤖 模型 {model_name} 正在生成回答...")
     try:
         response = client.chat.completions.create(
             model=model_name,
