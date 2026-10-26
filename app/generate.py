@@ -12,7 +12,7 @@ client = OpenAI(
     base_url=os.getenv("OPENAI_BASE_URL")
 )
 
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek-v4.1-flash-1017")
 
 def ask_rag(query: str, model_name: str = DEFAULT_MODEL) -> str:
     print(f"\n🙋‍♂️ 用户：{query}")

@@ -13,7 +13,7 @@ app = FastAPI(title="RAG Eval Pipeline API")
 # 定义请求体格式
 class QueryRequest(BaseModel):
     query: str
-    model_name: str = os.getenv("DEFAULT_MODEL") # 允许通过接口指定模型
+    model_name: str = os.getenv("DEFAULT_MODEL", "deepseek-v4.1-flash-1017") # 允许通过接口指定模型
 
 @app.get("/health")
 def health():
