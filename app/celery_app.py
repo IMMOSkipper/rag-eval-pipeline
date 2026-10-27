@@ -4,7 +4,9 @@ from celery import Celery
 celery_app = Celery(
     "rag_tasks",
     broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0"
+    backend="redis://localhost:6379/0",
+    # 强制加载任务模块
+    include=["app.ingest", "app.agent"]
 )
 
 celery_app.conf.update(
@@ -13,4 +15,6 @@ celery_app.conf.update(
     result_serializer='json',
     timezone='Asia/Shanghai',
     enable_utc=True,
+    # 【新增】允许 Celery 记录并更新任务的中间状态
+    task_track_started=True,
 )

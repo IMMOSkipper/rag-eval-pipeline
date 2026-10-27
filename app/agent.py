@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+from app.celery_app import celery_app # 引入 Celery
+# import time
 
 load_dotenv()
 
@@ -15,6 +17,7 @@ DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek-v4.1-flash-1017")
 def get_weather(city: str) -> str:
     """查询指定城市的天气。"""
     # 实际开发中这里会调用第三方API
+    # time.sleep(15)
     if "北京" in city:
         return "北京今天晴，气温25℃，适合户外运动。"
     return f"抱歉，没有查到 {city} 的天气数据。"
@@ -34,16 +37,16 @@ Thought: 我已经知道答案了
 Final Answer: 最终的回答内容
 """
 
-def run_agent_step_by_step(query: str, model_name=DEFAULT_MODEL):
-    """手搓一个单步的 Agent，生成器模式，方便后续做 SSE 流式输出"""
-    print(f"\n🙋‍♂️ 用户：{query}")
-
-    # 初始的 Prompt
+@celery_app.task(bind=True)
+def async_run_agent(self, query: str, model_name=DEFAULT_MODEL):
     prompt = f"{AGENT_PROMPT}\nQuestion: {query}\n"
 
-    # 最多循环3次，防止死循环
     for step in range(3):
-        print(f"⌛️ [Agent 思考中] 第 {step + 1} 轮...")
+        # 【关键】每次思考前，通过 Celery 更新中间状态，前端就轮询到了
+        # status_info = f"Step {step + 1}: 模型思考中..."
+        self.update_state(state="PROGRESS", meta={'step': step + 1, 'status': '模型思考中...'})
+        # print(f"🟢 [Celery 状态更新] {status_info}")
+        
         response = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
@@ -52,38 +55,28 @@ def run_agent_step_by_step(query: str, model_name=DEFAULT_MODEL):
         )
 
         output = response.choices[0].message.content
-        print(f"🧠 模型输出：\n{output}")
 
-        # 解析大模型的输出
         if "Final Answer:" in output:
             final_answer = output.split("Final Answer:")[-1].strip()
-            print(f"✅️ 最终回答：{final_answer}\n")
-            return final_answer
+            return {"status": "success", "answer": final_answer}
 
-        # 如果决定调用工具
         if "Action:" in output and "Action Input:" in output:
-            try:
-                action = output.split("Action:")[-1].split("Action Input:")[0].strip()
-                action_input = output.split("Action Input:")[-1].strip()
+            action = output.split("Action:")[-1].split("Action Input:")[0].strip()
+            action_input = output.split("Action Input:")[-1].strip()
 
-                print(f"🛠️ 准备调用工具：{action}, 参数：{action_input}")
+            # 【关键】更新状态为执行工具
+            self.update_state(state='PROGRESS', meta={'step': step + 1, 'status': f'正在调用工具: {action}'})
+            # print(f"🛠️ [Celery 状态更新] 正在调用工具: {action}")
 
-                # 执行工具
-                if action == "get_weather":
-                    observation = get_weather(action_input)
-                else:
-                    observation = f"找不到工具 {action}"
+            if action == "get_weather":
+                observation = get_weather(action_input)
+            else:
+                observation = f"找不到工具 {action}"
 
-                print(f"👀 工具执行结果（Observation）：{observation}")
+            prompt += f"{output}\nObservation：{observation}\nThought:"
 
-                # 把观察结果塞回 Prompt 里，让模型继续思考
-                prompt += f"{output}\nObservation：{observation}\nThought:"
 
-            except Exception as e:
-                print(f"解析工具调用失败：{e}")
-                break
-
-    return "Agent 执行失败或超时。"
+    return {"status": "failed", "answer": "Agent 执行超时"}
 
 if __name__ == "__main__":
-    run_agent_step_by_step("查一下北京天气怎么样？")
+    run_agent_step_by_step.delay("查一下北京天气怎么样？")
