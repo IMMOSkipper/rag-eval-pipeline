@@ -1,10 +1,13 @@
+import os
 from celery import Celery
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # 连接本地 Docker 跑的 Redis
 celery_app = Celery(
     "rag_tasks",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
+    broker=REDIS_URL,
+    backend=REDIS_URL,
     # 强制加载任务模块
     include=["app.ingest", "app.agent"]
 )
