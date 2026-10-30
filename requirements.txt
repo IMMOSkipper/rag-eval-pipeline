@@ -10,3 +10,4 @@ langchain-huggingface
 langchain-chroma
 chromadb
 sentence-transformers
+tenacity

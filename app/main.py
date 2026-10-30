@@ -30,6 +30,7 @@ class QueryRequest(BaseModel):
 
 class AgentRequest(BaseModel):
     query: str
+    session_id: str = "test_user_1" # 新增
 
 @app.get("/health")
 def health():
@@ -88,7 +89,7 @@ def get_task_status(task_id: str):
 # 发起 Agent 任务
 @app.post("/api/agent")
 def run_agent_endpoint(request: AgentRequest):
-    task = async_run_agent.delay(request.query)
+    task = async_run_agent.delay(request.query, request.session_id)
     return {"code": 200, "task_id": task.id}
 
 # SSE 实时推送状态流
