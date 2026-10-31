@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y gcc g++ libmagic-dev && rm -rf /var/lib
 COPY requirements.txt .
 
 # 4. 使用清华源加速 pip 安装（因为之前已经精简过 requirements，这里不会拉取 nvidia 毒瘤包）
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    rm -rf /tmp/* /var/tmp/*
 
 # 5. 拷贝项目其余所有文件
 COPY . .

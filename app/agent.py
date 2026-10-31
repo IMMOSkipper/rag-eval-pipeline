@@ -79,10 +79,16 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
     # 把当前用户的问题加入记忆
     messages.append({"role": "user", "content": query})
 
-    # prompt = f"{AGENT_PROMPT}\nQuestion: {query}\n"
+    # 【新增】记录开始时间，防止由于 API 卡死导致任务一直挂起
+    start_time = time.time()
+    max_execution_time = 60 # 最对允许执行60秒
 
     # Agent 思考循环（最多5步防止死循环）
     for step in range(5):
+        # 【新增】超时熔断拦截
+        if time.time() - start_time > max_execution_time:
+            print("⚠️ Agent 执行超时，强制中断！")
+            return {"status": "failed", "answer": "任务执行时间过长，已自动中断。"}
         # 【关键】每次思考前，通过 Celery 更新中间状态，前端就轮询到了
         # status_info = f"Step {step + 1}: 模型思考中..."
         self.update_state(state="PROGRESS", meta={'step': step + 1, 'status': '模型思考中...'})
@@ -93,11 +99,11 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
             messages=messages,
             tools=TOOLS_SCHEMA,
             temperature=0.1,
-            # stop=["\nObservation:"] # 遇到 Observation 就停止，等待工具执行
         )
 
         response_message = response.choices[0].message
-        messages.append(response_message.dict()) # 把模型这轮的回复加入上下文
+        # 把模型这轮的回复加入上下文；注意：必须转字典，否则存Redis会报错
+        messages.append(response_message.dict())
 
         # 判断是否需要调用工具
         if response_message.tool_calls:
@@ -128,10 +134,8 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
         else:
             # 没有工具调用，说明思考结束，输出了最终答案
             final_answer = response_message.content
-
             # 保存最新的记忆到 Redis（保留最近10条消息，设置1小时过期）
             r.setex(history_key, 3600, json.dumps(messages[-10:]))
-
             return {"status": "success", "answer": final_answer}
 
     return {"status": "failed", "answer": "Agent 执行步骤超出限制，已强制中断。"}

@@ -21,6 +21,7 @@ services:
     depends_on:
       - redis
     volumes:
+      - .:/app
       - ./chroma_db:/app/chroma_db
       - ./data:/app/data
       # 【新增】把本地模型缓存直接挂载到容器内，秒加载，无需下载
@@ -39,6 +40,7 @@ services:
     depends_on:
       - redis
     volumes:
+      - .:/app
       - ./chroma_db:/app/chroma_db
       - ./data:/app/data
       # 【新增】把本地模型缓存直接挂载到容器内，秒加载，无需下载
