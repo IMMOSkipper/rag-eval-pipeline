@@ -32,7 +32,7 @@ def get_weather(city: str) -> str:
     # 模拟可能发生的网络错误（可以试着打开这行看看重试效果）
     # if time.time() % 2 == 0: raise Exception("Network Timeout!")
     # 实际开发中这里会调用第三方API
-    # time.sleep(15)
+    # time.sleep(35)
     if "北京" in city:
         return "北京今天晴，气温25℃，适合户外运动。"
     return f"抱歉，没有查到 {city} 的天气数据。"

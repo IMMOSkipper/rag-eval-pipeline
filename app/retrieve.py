@@ -16,8 +16,15 @@ embeddings = HuggingFaceEmbeddings(
 vectorstore = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
 
 # 加载 Rerank 模型（首次运行会自动从 HF 镜像站下载约 1.1GB 的权重）
-print("正在加载 Rerank 模型...")
-reranker = CrossEncoder('BAAI/bge-reranker-base', max_length=512)
+_reranker = None
+
+def get_reranker():
+    global _retanker
+    if _reranker is None:
+        print("正在加载 Rerank 模型（懒加载）...")
+        _reranker = CrossEncoder('BAAI/bge-reranker-base', max_length=512)
+    return _reranker
+
 
 def get_relevant_context(query: str, top_k: int = 3, use_rerank: bool = True) -> str:
     """检索相关文档并拼接成上下文"""
@@ -35,6 +42,7 @@ def get_relevant_context(query: str, top_k: int = 3, use_rerank: bool = True) ->
     # 【阶段二：Rerank精排】使用交叉编码器重新打分
     if use_rerank and len(valid_docs) > 1:
         print("🎯 正在进行 Rerank 重排...")
+        reranker = get_reranker()
         # 构建 问题-文档 对
         pairs = [[query, doc.page_content] for doc in valid_docs]
         # 计算交叉匹配得分
