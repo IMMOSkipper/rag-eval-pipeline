@@ -1,7 +1,8 @@
 import os
 import json
 import time
-import random
+import requests
+import urllib.parse
 from dotenv import load_dotenv
 from openai import OpenAI
 from app.celery_app import celery_app # 引入 Celery
@@ -26,25 +27,50 @@ r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 class WeatherArgs(BaseModel):
     city: str
 
-# 定义工具（加入 Tenacity 容错重试）
+# 定义一个异常，专门用来触发重试
+class RetryableNetworkError(Exception):
+    pass
+
+# 定义工具（加入 Tenacity 容错重试，只对网络错误重试）
 @retry(
     stop=stop_after_attempt(3), # 最多重试3次
     wait=wait_exponential(multiplier=1, min=1, max=5), # 指数退避重试
-    retry=retry_if_exception_type(Exception)
+    retry=retry_if_exception_type(RetryableNetworkError)
 )
 def get_weather(city: str) -> str:
     """查询指定城市的天气。"""
-    print(f"🛠️ [工具调用] 正常查询 {city} 的天气...")
-    # 模拟真实网络可能发生的错误（有50%的概率触发API超时）    
-    if random.random() < 0.5:
-        print(f"⚠️ [网络抖动]，模拟 {city} 天气接口超时...")
-        raise Exception("NetWork TimeOut!")
+    print(f"🛠️ [真实 API 调用] 正常查询 {city} 的天气...")
 
-    # 实际开发中这里会调用第三方API
     # time.sleep(35)
-    if "北京" in city:
-        return "北京今天晴，气温25℃，适合户外运动。"
-    return f"抱歉，没有查到 {city} 的天气数据。"
+    # 使用免费的 wttr.in API，返回 JSON 格式
+    # URL编码防御
+    encoded_city = urllib.parse.quote(city)
+    url = f"https://wttr.in/{encoded_city}?format=j1"
+
+    try:
+        # 真实的网络请求，强制设置3秒超时，防止卡死
+        response = requests.get(url, timeout=3)
+
+        # 遇到限流或服务端错误，触发重试
+        if response.status_code == 429 or response.status_code >= 500:
+            raise RetryableNetworkError(f"服务器繁忙，状态码：{response.status_code}")
+
+        # 客户端错误（比如404），直接抛普通Exception，不触发重试，交给模型兜底
+        if response.status_code == 404:
+            raise Exception(f"找不到城市 {city} 的天气数据，请检查城市名。")
+
+        data = response.json()
+
+        # 解析失败，也不触发重试，交给模型
+        try:
+            temp = data['current_condition'][0]['temp_C']
+            return f"{city} 当前气温 {temp}℃，天气数据获取成功。"
+        except (KeyError, IndexError):
+            raise Exception(f"无法解析 {city} 的天气数据，请检查城市名称。")  
+    except requests.exceptions.RequestException as e:
+        # 网络级别的超时或断开，才触发重试
+        raise RetryableNetworkError(f"网络请求超时或断开：{str(e)}")
+    
 
 # 把 Python 函数映射成字典，方便以后根据名字调用
 AVAILABLE_TOOLS = {

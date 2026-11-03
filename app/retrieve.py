@@ -19,7 +19,7 @@ vectorstore = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
 _reranker = None
 
 def get_reranker():
-    global _retanker
+    global _reranker
     if _reranker is None:
         print("正在加载 Rerank 模型（懒加载）...")
         _reranker = CrossEncoder('BAAI/bge-reranker-base', max_length=512)
