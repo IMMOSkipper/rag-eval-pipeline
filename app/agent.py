@@ -1,11 +1,13 @@
 import os
 import json
 import time
+import random
 from dotenv import load_dotenv
 from openai import OpenAI
 from app.celery_app import celery_app # 引入 Celery
 import redis
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from pydantic import BaseModel, ValidationError
 
 load_dotenv()
 
@@ -20,6 +22,10 @@ DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek-v4.1-flash-1017")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
+# 定义工具的入参模型
+class WeatherArgs(BaseModel):
+    city: str
+
 # 定义工具（加入 Tenacity 容错重试）
 @retry(
     stop=stop_after_attempt(3), # 最多重试3次
@@ -29,8 +35,11 @@ r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 def get_weather(city: str) -> str:
     """查询指定城市的天气。"""
     print(f"🛠️ [工具调用] 正常查询 {city} 的天气...")
-    # 模拟可能发生的网络错误（可以试着打开这行看看重试效果）
-    # if time.time() % 2 == 0: raise Exception("Network Timeout!")
+    # 模拟真实网络可能发生的错误（有50%的概率触发API超时）    
+    if random.random() < 0.5:
+        print(f"⚠️ [网络抖动]，模拟 {city} 天气接口超时...")
+        raise Exception("NetWork TimeOut!")
+
     # 实际开发中这里会调用第三方API
     # time.sleep(35)
     if "北京" in city:
@@ -117,7 +126,14 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
             # 执行工具
             if function_name in AVAILABLE_TOOLS:
                 try:
+                    #【新增】尝试进行强参数类型校验
+                    if function_name == "get_weather":
+                        WeatherArgs(**function_args)
+
                     function_response = AVAILABLE_TOOLS[function_name](**function_args)
+                except ValidationError as e:
+                    function_response = f"参数校验失败，请修正后重试。错误信息: {e.errors()}"
+                    print(f"⚠️ 参数校验失败: {e}")
                 except Exception as e:
                     # 如果工具报错（比如重试3次全失败），把错误信息作为观察结果塞回去
                     function_response = f"工具执行失败: {str(e)}"
