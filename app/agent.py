@@ -9,6 +9,7 @@ from app.celery_app import celery_app # 引入 Celery
 import redis
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from pydantic import BaseModel, ValidationError
+from app.retrieve import get_relevant_context
 
 load_dotenv()
 
@@ -26,6 +27,10 @@ r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 # 定义工具的入参模型
 class WeatherArgs(BaseModel):
     city: str
+
+# 知识库工具的参数
+class KnowledgeArgs(BaseModel):
+    query: str
 
 # 定义一个异常，专门用来触发重试
 class RetryableNetworkError(Exception):
@@ -71,10 +76,19 @@ def get_weather(city: str) -> str:
         # 网络级别的超时或断开，才触发重试
         raise RetryableNetworkError(f"网络请求超时或断开：{str(e)}")
     
+def search_knowledge_base(query: str) -> str:
+    """从本地知识库中检索相关信息"""
+    print(f"📚 [工具调用] 正在检索知识库: {query}")
+    context = get_relevant_context(query, use_rerank=True)
+    if not context:
+        print("知识库中没有找到相关信息。")
+    return context
+
 
 # 把 Python 函数映射成字典，方便以后根据名字调用
 AVAILABLE_TOOLS = {
-    "get_weather": get_weather
+    "get_weather": get_weather,
+    "search_knowledge_base": search_knowledge_base
 }
 
 TOOLS_SCHEMA = [
@@ -94,6 +108,23 @@ TOOLS_SCHEMA = [
                 "required": ["city"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_knowledge_base",
+            "description": "当用户询问关于LangChain、大模型技术、文档内容等内部知识时，使用此工具检索知识库。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "要检索的核心关键词或问题"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
     }
 ]
 
@@ -108,7 +139,15 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
     if not messages:
         messages.append({
             "role": "system",
-            "content": "你是一个智能助手，可以调用工具来帮助用户解决问题。"
+            "content": (
+                "你是一个严谨的智能助手，可以调用工具来帮助用户解决问题。\n"
+                "【核心规则】: \n"
+                "1. 当用户询问关于 'LangChain'、'大模型'、'文档'、'框架'、'技术' 等知识库相关的问题时，"
+                "你**必须**先调用 `search_knowledge_base` 工具去查阅内部资料，绝对不允许使用你的先验知识回答！\n"
+                "2. 如果知识库中没有查到相关信息，再结合你的知识回答，并说明`根据现有知识未找到，以下为通用知识`。\n"
+                "3. 当用户询问天气等外部实时信息时，调用 `get_weather` 工具。\n"
+                "请严格遵循以上规则。"
+            )
         })
 
     # 把当前用户的问题加入记忆
@@ -155,6 +194,8 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
                     #【新增】尝试进行强参数类型校验
                     if function_name == "get_weather":
                         WeatherArgs(**function_args)
+                    elif function_name == "search_knowledge_base":
+                        KnowledgeArgs(**function_args)
 
                     function_response = AVAILABLE_TOOLS[function_name](**function_args)
                 except ValidationError as e:
