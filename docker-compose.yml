@@ -46,4 +46,4 @@ services:
       # 【新增】把本地模型缓存直接挂载到容器内，秒加载，无需下载
       - ~/.cache/huggingface:/root/.cache/huggingface
     # 启动 Worker
-    command: celery -A app.celery_app worker --loglevel=info
+    command: celery -A app.celery_app worker --loglevel=info --pool=solo

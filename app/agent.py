@@ -181,39 +181,39 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
 
         # 判断是否需要调用工具
         if response_message.tool_calls:
-            tool_call = response_message.tool_calls[0]
-            function_name = tool_call.function.name
-            function_args = json.loads(tool_call.function.arguments)
+            for tool_call in response_message.tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
 
-            self.update_state(state='PROGRESS', meta={'step': step + 1, 'status': f'正在调用工具: {function_name}'})
-            print(f"🧠 模型决定调用工具: {function_name}, 参数: {function_args}")
+                self.update_state(state='PROGRESS', meta={'step': step + 1, 'status': f'正在调用工具: {function_name}'})
+                print(f"🧠 模型决定调用工具: {function_name}, 参数: {function_args}")
 
-            # 执行工具
-            if function_name in AVAILABLE_TOOLS:
-                try:
-                    #【新增】尝试进行强参数类型校验
-                    if function_name == "get_weather":
-                        WeatherArgs(**function_args)
-                    elif function_name == "search_knowledge_base":
-                        KnowledgeArgs(**function_args)
+                # 执行工具
+                if function_name in AVAILABLE_TOOLS:
+                    try:
+                        #【新增】尝试进行强参数类型校验
+                        if function_name == "get_weather":
+                            WeatherArgs(**function_args)
+                        elif function_name == "search_knowledge_base":
+                            KnowledgeArgs(**function_args)
 
-                    function_response = AVAILABLE_TOOLS[function_name](**function_args)
-                except ValidationError as e:
-                    function_response = f"参数校验失败，请修正后重试。错误信息: {e.errors()}"
-                    print(f"⚠️ 参数校验失败: {e}")
-                except Exception as e:
-                    # 如果工具报错（比如重试3次全失败），把错误信息作为观察结果塞回去
-                    function_response = f"工具执行失败: {str(e)}"
-            else:
-                function_response = f"找不到工具 {function_name}"
+                        function_response = AVAILABLE_TOOLS[function_name](**function_args)
+                    except ValidationError as e:
+                        function_response = f"参数校验失败，请修正后重试。错误信息: {e.errors()}"
+                        print(f"⚠️ 参数校验失败: {e}")
+                    except Exception as e:
+                        # 如果工具报错（比如重试3次全失败），把错误信息作为观察结果塞回去
+                        function_response = f"工具执行失败: {str(e)}"
+                else:
+                    function_response = f"找不到工具 {function_name}"
 
-            # 把工具执行结果加入上下文（注意 role 是 tool）
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "name": function_name,
-                "content": str(function_response)
-            })
+                # 把工具执行结果加入上下文（注意 role 是 tool）
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": str(function_response)
+                })
         else:
             # 没有工具调用，说明思考结束，输出了最终答案
             final_answer = response_message.content
