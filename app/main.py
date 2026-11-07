@@ -42,12 +42,13 @@ def chat(request: QueryRequest):
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
-        result = ask_rag(request.query, model_name=request.model_name)
+        result, context = ask_rag(request.query, model_name=request.model_name)
         return {
             "code": 200,
             "data": {
                 "query": request.query,
-                "answer": result
+                "answer": result,
+                "context": context
             }
         }
     except Exception as e:

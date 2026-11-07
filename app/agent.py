@@ -155,7 +155,7 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
 
     # 【新增】记录开始时间，防止由于 API 卡死导致任务一直挂起
     start_time = time.time()
-    max_execution_time = 60 # 最对允许执行60秒
+    max_execution_time = 60 # 最多允许执行60秒
 
     # Agent 思考循环（最多5步防止死循环）
     for step in range(5):
@@ -173,11 +173,12 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
             messages=messages,
             tools=TOOLS_SCHEMA,
             temperature=0.1,
+            timeout=30
         )
 
         response_message = response.choices[0].message
         # 把模型这轮的回复加入上下文；注意：必须转字典，否则存Redis会报错
-        messages.append(response_message.dict())
+        messages.append(response_message.model_dump(exclude_none=True))
 
         # 判断是否需要调用工具
         if response_message.tool_calls:

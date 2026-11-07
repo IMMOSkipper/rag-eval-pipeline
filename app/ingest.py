@@ -3,7 +3,7 @@ os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from app.celery_app import celery_app
 
 # DOC_PATH = "data/docs/langchain_overview.md"

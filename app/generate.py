@@ -48,7 +48,7 @@ def ask_rag(query: str, model_name: str = DEFAULT_MODEL) -> str:
         )
         answer = response.choices[0].message.content
         print(f"\n🤖 模型回答：\n{answer}\n" + "-" * 50)
-        return answer
+        return answer, context
     except Exception as e:
         print(f"调用大模型失败：{e}")
         return f"调用大模型失败：{str(e)}"

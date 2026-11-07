@@ -1,54 +1,77 @@
 import json
 import os
-import sys
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 import time
+import sys
+from dotenv import load_dotenv
+from datasets import Dataset
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy
+from langchain_openai import ChatOpenAI
+from langchain_huggingface import HuggingFaceEmbeddings
 
-# 将项目根目录加入路径，方便导入 app 包
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.generate import ask_rag
 
-EVAL_FILE = "eval/questions.jsonl"
+load_dotenv()
 
-def run_evaluation(model_name="deepseek-v4.1-flash-1017"):
-    print(f"🧪 开始运行 RAG 自动化评测（模型：{model_name}）")
-    print("=" * 50)
+judge_llm = ChatOpenAI(
+    model_name=os.getenv("DEFAULT_MODEL", "deepseek-v4.1-flash-1017"),
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL"),
+    temperature=0
+)
 
-    total = 0
-    pass_count = 0
+judge_embeddings = HuggingFaceEmbeddings(
+    model_name="BAAI/bge-small-zh-v1.5",
+    model_kwargs={"device": "cpu"}
+)
 
-    # 读取评测集
-    with open(EVAL_FILE, 'r', encoding='utf-8') as f:
+def run_eval():
+    questions = []
+    answers = []
+    contexts = []
+
+    with open("eval/questions.jsonl", "r", encoding="utf-8") as f:
         for line in f:
-            if not line.strip():
-                continue
             data = json.loads(line)
-            query = data["query"]
-            excepted = data["excepted_behavior"]
+            if data["expected_behavior"] == "answer":
+                questions.append(data["query"])
+                ans, ctx = ask_rag(data["query"])
+                answers.append(ans)
+                contexts.append([ctx])
 
-            total += 1
-            print(f"\n[{total}] 问题：{query}")
-            print(f"    预期行为：{excepted}")
+    # 构建Ragas数据集
+    data = {
+        "user_input": questions,
+        "response": answers,
+        "retrieved_contexts": contexts
+    }
+    dataset = Dataset.from_dict(data)
 
-            # 调用RAG（为了省时间，这里调用写好的函数）
-            # 可以给函数加点小改造，让它能返回是否命中上下文
-            # 但为了简单，通过判断回答里是否有“无法回答”来粗略定性
-            answer = ask_rag(query, model_name=model_name)
+    print("📊 正在请求 Ragas 裁判模型打分，请稍候...")
 
-            is_refuse = any(keyword in answer for keyword in ["无法回答", "没有找到", "没有提供"])
+    # 运行评测（使用大模型作为裁判）
+    result = evaluate(
+        dataset=dataset,
+        metrics=[faithfulness], #, answer_relevancy
+        llm=judge_llm,
+        embeddings=judge_embeddings
+    )
 
-            if excepted == "answer" and not is_refuse:
-                print(f"    ✅️ 结果：通过（成功回答）")
-                pass_count += 1
-            elif excepted == "refuse" and is_refuse:
-                print(f"    ✅️ 结果：通过（成功拒答）")
-                pass_count += 1
-            else:
-                print(f"    ❌️ 结果：失败（不符合预期。模型实际输出：{answer[:50]}...）")
+    print("🎉 评测完成！")
+    print(result)
 
-            time.sleep(1) # 稍微停顿，防止触发限流
-
-    print("\n" + "=" * 50)
-    print(f"🏆 评测完成！总题数：{total}, 通过：{pass_count}, 准确率：{pass_count/total * 100:.1f}%")
+    try:
+        result_dict = result.to_pandas().to_dict(orient="records")
+        with open("eval/ragas_report.json", "w") as f:
+            json.dump(result_dict, f, ensure_ascii=False, indent=2)
+        print("✅️ 评测结果已保存至 eval/ragas_report.json")
+    except Exception as e:
+        print(f"⚠️ 保存 JSON 失败，但不影响评测结果: {e}")
+    
 
 if __name__ == "__main__":
-    run_evaluation(model_name="deepseek-v4.1-flash-1017")
+    run_eval()

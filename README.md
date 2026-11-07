@@ -32,7 +32,7 @@
 
     OPENAI_API_KEY="sk-your-api-key"
     OPENAI_BASE_URL="https://api.your-provider.com/v1"
-    DEFAULT_MODEL="deepseek-chat"
+    DEFAULT_MODEL="deepseek-v4.1-flash-1017"
 
 ### 2. 一键 Docker 部署 (推荐)
 

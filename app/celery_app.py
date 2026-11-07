@@ -20,4 +20,6 @@ celery_app.conf.update(
     enable_utc=True,
     # 【新增】允许 Celery 记录并更新任务的中间状态
     task_track_started=True,
+    soft_time_limit=60,
+    time_limit=65
 )
