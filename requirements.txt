@@ -11,3 +11,8 @@ langchain-chroma
 chromadb
 sentence-transformers
 tenacity
+ragas
+datasets
+numpy
+langchain-openai
+langchain-community==0.3.31
