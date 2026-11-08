@@ -22,7 +22,7 @@ def ask_rag(query: str, model_name: str = DEFAULT_MODEL) -> str:
 
     # 如果没检索到有效内容，直接拒答
     if not context:
-        return "抱歉，知识库没有找到与您问题相关的内容，我无法回答。"
+        return "抱歉，知识库没有找到与您问题相关的内容，我无法回答。", "未检索到有效内容"
 
     # 组装 Prompt
     prompt = f"""你是一个严谨的AI助手，请严格根据下面提供的参考资料来回答用户的问题。
@@ -51,7 +51,7 @@ def ask_rag(query: str, model_name: str = DEFAULT_MODEL) -> str:
         return answer, context
     except Exception as e:
         print(f"调用大模型失败：{e}")
-        return f"调用大模型失败：{str(e)}"
+        return f"调用大模型失败：{str(e)}", "未检索到有效内容"
 
 if __name__ == "__main__":
     # 测试1：知识库里有答案的问题
