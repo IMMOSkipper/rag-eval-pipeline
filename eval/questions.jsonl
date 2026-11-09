@@ -1,6 +1,6 @@
 {"query": "LangChain 里的智能体（Agent）是什么？", "expected_behavior": "answer", "reference": "智能体=模型+运行框架，框架提供create_agent"}
 {"query": "LangChain 的运行框架包含哪些组件？", "expected_behavior": "answer", "reference": "包含Prompt、工具、中间件"}
-{"query": "怎么用 Python 代码自定义一个 LangChain 工具？", "expected_behavior": "refuse", "reference": "无法回答"}
+{"query": "怎么用 Python 代码自定义一个 LangChain 工具？", "expected_behavior": "answer", "reference": "使用 tools=[get_weather] 传入"}
 {"query": "人工智能的第一次寒冬是由哪份报告引发的？", "expected_behavior": "answer", "reference": "英国的莱特希尔报告"}
 {"query": "感知机是由谁公布的？", "expected_behavior": "answer", "reference": "罗森布拉特"}
 {"query": "Transformer 是哪一年被提出的？", "expected_behavior": "answer", "reference": "2017年"}
