@@ -144,7 +144,7 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
                 "【核心规则】: \n"
                 "1. 当用户询问关于 'LangChain'、'大模型'、'文档'、'框架'、'技术' 等知识库相关的问题时，"
                 "你**必须**先调用 `search_knowledge_base` 工具去查阅内部资料，绝对不允许使用你的先验知识回答！\n"
-                "2. 如果知识库中没有查到相关信息，再结合你的知识回答，并说明`根据现有知识未找到，以下为通用知识`。\n"
+                "2. 如果知识库中没有查到相关信息，只回复`根据现有资料，我无法回答这个问题`，不要用通用知识补充。\n"
                 "3. 当用户询问天气等外部实时信息时，调用 `get_weather` 工具。\n"
                 "请严格遵循以上规则。"
             )
@@ -156,13 +156,19 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
     # 【新增】记录开始时间，防止由于 API 卡死导致任务一直挂起
     start_time = time.time()
     max_execution_time = 60 # 最多允许执行60秒
+    called_tools = []
+    tool_outputs = []
 
     # Agent 思考循环（最多5步防止死循环）
     for step in range(5):
         # 【新增】超时熔断拦截
         if time.time() - start_time > max_execution_time:
             print("⚠️ Agent 执行超时，强制中断！")
-            return {"status": "failed", "answer": "任务执行时间过长，已自动中断。"}
+            return {
+                "status": "failed", 
+                "answer": "任务执行时间过长，已自动中断。",
+                "metrics": {"step": step, "tools": called_tool, "tool_outputs": tool_outputs,},
+            }
         # 【关键】每次思考前，通过 Celery 更新中间状态，前端就轮询到了
         # status_info = f"Step {step + 1}: 模型思考中..."
         self.update_state(state="PROGRESS", meta={'step': step + 1, 'status': '模型思考中...'})
@@ -215,11 +221,22 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
                     "name": function_name,
                     "content": str(function_response)
                 })
+
+                called_tools.append(function_name)
+                tool_outputs.append(str(function_response))
         else:
             # 没有工具调用，说明思考结束，输出了最终答案
             final_answer = response_message.content
             # 保存最新的记忆到 Redis（保留最近10条消息，设置1小时过期）
             r.setex(history_key, 3600, json.dumps(messages[-10:]))
-            return {"status": "success", "answer": final_answer}
+            return {
+                "status": "success", 
+                "answer": final_answer, 
+                "metrics": {"step": step + 1, "tools": called_tools, "tool_outputs": tool_outputs,},
+                }
 
-    return {"status": "failed", "answer": "Agent 执行步骤超出限制，已强制中断。"}
+    return {
+        "status": "failed",
+        "answer": "Agent 执行步骤超出限制，已强制中断。",
+        "metrics": {"step": 5, "tools": called_tools, "tool_outputs": tool_outputs,},
+    }

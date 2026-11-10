@@ -23,6 +23,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from ragas import evaluate
 from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
 from app.generate import ask_rag
+from ragas.llms import LangchainLLMWrapper
 
 # 初始化裁判模型（设置 seed 保证相对稳定）
 judge_llm = ChatOpenAI(
@@ -31,6 +32,7 @@ judge_llm = ChatOpenAI(
     base_url=os.getenv("OPENAI_BASE_URL"),
     temperature=0
 )
+judge = LangchainLLMWrapper(judge_llm, bypass_n=True)
 
 judge_embeddings = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-zh-v1.5",
@@ -104,18 +106,19 @@ def run_eval(sample_times=3):
                 result = evaluate(
                     dataset=dataset,
                     metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
-                    llm=judge_llm,
+                    llm=judge,
                     embeddings=judge_embeddings
                 )
                 df = result.to_pandas()
-
-                # 收集每次各项指标的均值
-                for metric in scores_dict.keys():
-                    if metric in df.columns:
-                        val = df[metric].mean()
-                        if np.isnan(val):
-                            val = 0.0
-                        scores_dict[metric].append(val)
+                missing = [
+                    metric for metric in scores_dict
+                    if metric not in df.columns or df[metric].isna().any()
+                ]
+                if missing:
+                    print(f"  ⚠️ 本次采样有指标缺失，不计入均值: {missing}")
+                    continue
+                for metric in scores_dict:
+                    scores_dict[metric].append(float(df[metric].mean()))
             except Exception as e:
                 print(f"    ⚠️ 本次采样部分指标失败: {e}")
 
