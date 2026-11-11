@@ -80,7 +80,7 @@ def run_agent_eval():
 
         if expected == "refuse":
             refuse_total += 1
-            if "无法回答" in ans:
+            if "无法回答" in ans and tool_ok:
                 refuse_correct += 1
                 print("  ✅️ 拒答成功")
             else:
@@ -88,11 +88,11 @@ def run_agent_eval():
         else:
             answer_total += 1
             temps = re.findall(r"当前气温\s*(-?\d+)", outputs)
-            weather_ok = bool(temps) and (t in ans for t in temps)
+            weather_ok = bool(temps) and all(t in ans for t in temps)
             facts = item.get("must_include", [])
             any_facts = item.get("must_include_any", [])
-            fact_in_answer = all(x in ans for x in facts) and (not any_facts or (x in ans for x in any_facts))
-            fact_in_tool = all(x in outputs for x in facts) and (not any_facts or (x in outputs for x in any_facts))
+            fact_in_answer = all(x in ans for x in facts) and (not any_facts or any(x in ans for x in any_facts))
+            fact_in_tool = all(x in outputs for x in facts) and (not any_facts or any(x in outputs for x in any_facts))
             fact_ok = fact_in_answer and fact_in_tool
             if expected == "get_weather":
                 answer_ok = weather_ok

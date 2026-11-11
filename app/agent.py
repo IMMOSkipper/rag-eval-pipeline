@@ -142,7 +142,7 @@ def get_safe_history(messages: list) -> list:
     safe_history = []
     # 倒序遍历，只要遇到user消息就截断
     for msg in reversed(history):
-        safe_history.insert(0, msg):
+        safe_history.insert(0, msg)
         if msg["role"] == "user" and len(safe_history) >= 8:
             break
 
@@ -187,7 +187,7 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
             return {
                 "status": "failed", 
                 "answer": "任务执行时间过长，已自动中断。",
-                "metrics": {"step": step, "tools": called_tool, "tool_outputs": tool_outputs,},
+                "metrics": {"step": step, "tools": called_tools, "tool_outputs": tool_outputs,},
             }
         # 【关键】每次思考前，通过 Celery 更新中间状态，前端就轮询到了
         # status_info = f"Step {step + 1}: 模型思考中..."

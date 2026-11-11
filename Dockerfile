@@ -15,7 +15,10 @@ RUN apt-get update && apt-get install -y gcc g++ libmagic-dev && rm -rf /var/lib
 # 3. 先拷贝依赖清单，利用 Docker 缓存机制（代码改动不会导致重新装包）
 COPY requirements.txt .
 
-# 4. 使用清华源加速 pip 安装（因为之前已经精简过 requirements，这里不会拉取 nvidia 毒瘤包）
+# 4. 先装 CPU 版 PyTorch，再装其余依赖，避免 Linux 上默认带上 nvidia 包
+RUN pip install --no-cache-dir "torch==2.14.1+cpu" \
+    --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     rm -rf /tmp/* /var/tmp/*
 

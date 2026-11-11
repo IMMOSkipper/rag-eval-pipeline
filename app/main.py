@@ -11,6 +11,10 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
+import uuid
+import aiofiles
+import hashlib
+from app.retrieve import vectorstore
 
 load_dotenv()
 app = FastAPI(title="RAG Eval Pipeline API")
@@ -65,6 +69,17 @@ async def upload_document(file: UploadFile = File(...)):
     os.makedirs("data/docs", exist_ok=True)
     file_path = f"data/docs/{file.filename}"
 
+    # 【新增】计算文件内容的 MD5 哈希
+    file_content = await file.read()
+    file_hash = hashlib.md5(file_content).hexdigest()
+    await file.seek(0) # 重置指针，方便后面写入
+
+    # 【新增】查询 Chroma 数据库中是否已存在该哈希
+    # where 过滤条件，检测 metadata 里的 file_path
+    existing_docs = vectorstore.get(where={"file_hash": file_hash})
+    if len(existing_docs['ids']) > 0:
+        raise HTTPException(status_code=400, detail="该文件已经存在于知识库中，请勿重复上传。")
+
     # 【修复2】使用 aiofiles 异步写盘，不阻塞 Event Loop
     async with aiofiles.open(file_path, 'wb') as out_file:
         # 分块读取写入，避免大文件撑爆内存
@@ -72,7 +87,7 @@ async def upload_document(file: UploadFile = File(...)):
             await out_file.write(content)
 
     # 丢给 Celery 异步处理
-    task = async_ingest_document.delay(file_path)
+    task = async_ingest_document.delay(file_path, file_hash)
 
     return {
         "code": 200,

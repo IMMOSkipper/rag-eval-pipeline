@@ -56,21 +56,26 @@ def load_and_chunk(file_path: str):
 # Celery 异步任务入口（供 API 调用）
 # ===============================
 @celery_app.task
-def async_ingest_document(file_path: str):
+def async_ingest_document(file_path: str, file_hash: str = ""):
     """Celery 异步任务：读取、切块、向量化入库"""
     if not os.path.exists(file_path):
         return {"status": "error", "message": "文件不存在"}
 
-    chunks = load_and_chunk(file_path)
-    embeddings = get_embeddings()
+    clean_chunks = load_and_chunk(file_path)
 
+    # 【修改】为每个块打上 file_hash 的元数据标签
+    for chunk in clean_chunks:
+        chunk.metadata["file_hash"] = file_hash
+        chunk.metadata["source"] = os.path.basename(file_path)
+
+    embeddings = get_embeddings()
     Chroma.from_documents(
-        documents=chunks,
+        documents=clean_chunks,
         embedding=embeddings,
         persist_directory=DB_DIR
     )
 
-    return {"status": "success", "chunk_count": len(chunks)}
+    return {"status": "success", "chunk_count": len(clean_chunks)}
 
 
 if __name__ == "__main__":
