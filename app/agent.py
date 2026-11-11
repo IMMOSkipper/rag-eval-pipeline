@@ -128,6 +128,26 @@ TOOLS_SCHEMA = [
     }
 ]
 
+# 【新增】安全截断记忆的函数
+def get_safe_history(messages: list) -> list:
+    """安全截断：保留 System Prompt，且从 User 消息开始截断，防止 tool 消息悬空"""
+    if not messages:
+        return []
+
+    # 永远保留开头的 System Prompt
+    system_prompt = messages[0] if messages[0]["role"] == "system" else None
+    history = messages[1:] if system_prompt else messages
+
+    # 从后往前找，找最近的10条消息
+    safe_history = []
+    # 倒序遍历，只要遇到user消息就截断
+    for msg in reversed(history):
+        safe_history.insert(0, msg):
+        if msg["role"] == "user" and len(safe_history) >= 8:
+            break
+
+    return ([system_prompt] if system_prompt else []) + safe_history
+
 @celery_app.task(bind=True)
 def async_run_agent(self, query: str, session_id: str = "default_user", model_name=DEFAULT_MODEL):
     # 从 Redis 取出历史记忆
@@ -136,8 +156,8 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
     messages = json.loads(history_json) if history_json else []
 
     # 如果没有 system prompt，就加一个
-    if not messages:
-        messages.append({
+    if not messages or messages[0]["role"] != "system":
+        messages.insert(0, {
             "role": "system",
             "content": (
                 "你是一个严谨的智能助手，可以调用工具来帮助用户解决问题。\n"
@@ -228,7 +248,8 @@ def async_run_agent(self, query: str, session_id: str = "default_user", model_na
             # 没有工具调用，说明思考结束，输出了最终答案
             final_answer = response_message.content
             # 保存最新的记忆到 Redis（保留最近10条消息，设置1小时过期）
-            r.setex(history_key, 3600, json.dumps(messages[-10:]))
+            safe_msgs = get_safe_history(messages)
+            r.setex(history_key, 3600, json.dumps(safe_msgs))
             return {
                 "status": "success", 
                 "answer": final_answer, 

@@ -57,13 +57,19 @@ def chat(request: QueryRequest):
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
     """上传文档并异步解析入库"""
+    # 【修复1】防止路径穿越，重命名文件保留后缀
+    file_extension = os.path.splitext(file.filename)[1]
+    safe_filename = f"{uuid.uuid4().hex}{file_extension}"
+
     # 确保目录存在
     os.makedirs("data/docs", exist_ok=True)
     file_path = f"data/docs/{file.filename}"
 
-    # 保存文件
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # 【修复2】使用 aiofiles 异步写盘，不阻塞 Event Loop
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        # 分块读取写入，避免大文件撑爆内存
+        while content := await file.read(1024 * 1024): # 每次读1MB
+            await out_file.write(content)
 
     # 丢给 Celery 异步处理
     task = async_ingest_document.delay(file_path)
@@ -71,7 +77,8 @@ async def upload_document(file: UploadFile = File(...)):
     return {
         "code": 200,
         "message": "文件已上传，正在后台解析入库",
-        "task_id": task.id
+        "task_id": task.id,
+        "filename": safe_filename
     }
 
 @app.get("/api/task/{task_id}")
